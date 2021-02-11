@@ -178,7 +178,7 @@ func ServerWithConfig(cfg *config.Config) []cli.Flag {
 		&cli.StringFlag{
 			Name:        "service-user-uuid",
 			Value:       "95cb8724-03b2-11eb-a0a6-c33ef8ef53ad",
-			Usage:       "uuid of the internal service user (required on EOS)",
+			Usage:       "uuid of the internal service user (required on oCIS storage driver)",
 			EnvVars:     []string{"ACCOUNTS_SERVICE_USER_UUID"},
 			Destination: &cfg.ServiceUser.UUID,
 		},
