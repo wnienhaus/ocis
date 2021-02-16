@@ -86,25 +86,6 @@ func New(cfg *config.Config) Runtime {
 	}
 }
 
-type AccountsService struct {
-	ctx    context.Context
-	cancel context.CancelFunc // used to cancel the context go-micro services used to shutdown a service.
-	sig    *chan struct{}     // used to control the order of initialization is deterministic.
-	cfg    *config.Config
-}
-
-// TODO(refs) use functional options to initialize a proper AccountsService
-func (e AccountsService) Serve() {
-	e.cfg.Accounts.C = e.sig
-	if err := accounts.Execute(e.cfg.Accounts); err != nil {
-		panic(err)
-	}
-}
-
-func (e AccountsService) Stop() {
-	e.cancel()
-}
-
 // Start rpc runtime
 func (r *Runtime) Start() error {
 	halt := make(chan os.Signal, 1)
@@ -115,16 +96,23 @@ func (r *Runtime) Start() error {
 	defer globalCancel()
 
 	// TODO(refs) storate the suture.ServiceToken in order to remove a service. Combine this with canceling the context
-	// so micro unregisters it from the service registry.
+	// so go-micro unregisters it from the service registry.
+
+	//settings
 	settingsCtx, settingsCancel := context.WithCancel(globalCtx)
 	supervisor.Add(settings.NewSutureService(settingsCtx, settingsCancel, r.c.Settings))
 
+	// storages
 	scfg := storageConfig.New()
 	scfg.Log.Color = r.c.Log.Color
 	scfg.Log.Pretty = r.c.Log.Pretty
 	scfg.Log.Level = r.c.Log.Level
 	storageMetadataCtx, storageMetadataCancel := context.WithCancel(globalCtx)
 	supervisor.Add(storage.NewStorageMetadataSutureService(storageMetadataCtx, storageMetadataCancel, scfg))
+
+	// accounts
+	accountsCtx, accountsCancel := context.WithCancel(globalCtx)
+	supervisor.Add(accounts.NewAccountSutureService(accountsCtx, accountsCancel, r.c.Accounts))
 
 	go supervisor.ServeBackground()
 
