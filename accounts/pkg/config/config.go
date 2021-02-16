@@ -1,6 +1,8 @@
 // Package config should be moved to internal
 package config
 
+import "context"
+
 // LDAP defines the available ldap configuration.
 type LDAP struct {
 	Hostname     string
@@ -110,6 +112,7 @@ type Tracing struct {
 
 // Config merges all Account config parameters.
 type Config struct {
+	Context      context.Context
 	LDAP         LDAP
 	HTTP         HTTP
 	GRPC         GRPC

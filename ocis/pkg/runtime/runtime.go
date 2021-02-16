@@ -86,37 +86,41 @@ func New(cfg *config.Config) Runtime {
 	}
 }
 
+// serviceTokens keeps in memory a set of [service name] = []suture.ServiceToken that is used to shutdown services.
+// Shutting down a service implies removing it from the supervisor AND cancelling its context, this should be done
+// within the service Stop() method. Services should cancel their context.
+type serviceTokens map[string][]suture.ServiceToken
+
 // Start rpc runtime
 func (r *Runtime) Start() error {
 	halt := make(chan os.Signal, 1)
 	signal.Notify(halt, os.Interrupt)
 
+	// tokens is a global state that keeps service tokens in memory
+	tokens := serviceTokens{}
+
 	supervisor := suture.NewSimple("ocis")
 	globalCtx, globalCancel := context.WithCancel(context.Background())
-	defer globalCancel()
 
-	// TODO(refs) storate the suture.ServiceToken in order to remove a service. Combine this with canceling the context
-	// so go-micro unregisters it from the service registry.
-
-	//settings
 	settingsCtx, settingsCancel := context.WithCancel(globalCtx)
-	supervisor.Add(settings.NewSutureService(settingsCtx, settingsCancel, r.c.Settings))
+	tokens["settings"] = append(tokens["settings"], supervisor.Add(settings.NewSutureService(settingsCtx, settingsCancel, r.c.Settings)))
 
-	// storages
 	scfg := storageConfig.New()
 	scfg.Log.Color = r.c.Log.Color
 	scfg.Log.Pretty = r.c.Log.Pretty
 	scfg.Log.Level = r.c.Log.Level
 	storageMetadataCtx, storageMetadataCancel := context.WithCancel(globalCtx)
-	supervisor.Add(storage.NewStorageMetadataSutureService(storageMetadataCtx, storageMetadataCancel, scfg))
+	tokens["storage-metadata"] = append(tokens["storage-metadata"], supervisor.Add(storage.NewStorageMetadataSutureService(storageMetadataCtx, storageMetadataCancel, scfg)))
 
-	// accounts
 	accountsCtx, accountsCancel := context.WithCancel(globalCtx)
-	supervisor.Add(accounts.NewAccountSutureService(accountsCtx, accountsCancel, r.c.Accounts))
+	r.c.Accounts.Context = accountsCtx
+	tokens["accounts"] = append(tokens["accounts"], supervisor.Add(accounts.NewAccountSutureService(accountsCtx, accountsCancel, r.c.Accounts)))
 
 	go supervisor.ServeBackground()
 
 	<-halt
+	close(halt)
+	globalCancel()
 	return nil
 }
 

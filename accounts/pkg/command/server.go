@@ -113,9 +113,13 @@ func Server(cfg *config.Config) *cli.Command {
 				logger.Debug().
 					Msg("Tracing is not enabled")
 			}
+
+			if cfg.Context == nil {
+				cfg.Context = context.Background()
+			}
 			var (
 				gr          = run.Group{}
-				ctx, cancel = context.WithCancel(context.Background())
+				ctx, cancel = context.WithCancel(cfg.Context)
 				mtrcs       = metrics.New()
 			)
 
@@ -135,8 +139,6 @@ func Server(cfg *config.Config) *cli.Command {
 					http.Context(ctx),
 					http.Config(cfg),
 					http.Metrics(mtrcs),
-					//http.Flags(flagset.RootWithConfig(config.New())),
-					//http.Flags(flagset.ServerWithConfig(config.New())),
 					http.Handler(handler),
 				)
 
@@ -173,25 +175,12 @@ func Server(cfg *config.Config) *cli.Command {
 				})
 			}
 
-			{
-				stop := make(chan os.Signal, 1)
+			go gr.Run()
 
-				gr.Add(func() error {
-					signal.Notify(stop, os.Interrupt)
-
-					<-stop
-
-					return nil
-				}, func(err error) {
-					close(stop)
-					cancel()
-				})
-			}
-
-			if cfg.C != nil {
-				*cfg.C <- struct{}{}
-			}
-			return gr.Run()
+			stop := make(chan os.Signal, 1)
+			signal.Notify(stop, os.Interrupt)
+			<-stop
+			return nil
 		},
 	}
 }
