@@ -37,6 +37,7 @@ require (
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/viper v1.7.1
 	github.com/stretchr/testify v1.7.0
+	github.com/thejerf/suture v4.0.0+incompatible // indirect
 	go.opencensus.io v0.22.5
 	golang.org/x/sys v0.0.0-20201101102859-da207088b7d1
 )
