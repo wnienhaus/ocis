@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"flag"
 	"os"
 	"os/signal"
 	"path"
@@ -207,4 +208,37 @@ func StorageMetadata(cfg *config.Config) *cli.Command {
 			return gr.Run()
 		},
 	}
+}
+
+// StorageMetadataSupervisedService implements the suture.Service interface
+type StorageMetadataSupervisedService struct {
+	ctx    context.Context
+	cancel context.CancelFunc // used to cancel the context go-micro services used to shutdown a service.
+	cfg    *config.Config
+}
+
+func NewStorageMetadataSutureService(ctx context.Context, cancel context.CancelFunc, cfg *config.Config) StorageMetadataSupervisedService {
+	return StorageMetadataSupervisedService{
+		ctx:    ctx, // TODO(refs) make sure this context gets into the go-micro service.
+		cancel: cancel,
+		cfg:    cfg,
+	}
+}
+
+func (e StorageMetadataSupervisedService) Serve() {
+	f := &flag.FlagSet{}
+	for k := range StorageMetadata(e.cfg).Flags {
+		StorageMetadata(e.cfg).Flags[k].Apply(f)
+	}
+	ctx := cli.NewContext(nil, f, nil)
+	if StorageMetadata(e.cfg).Before != nil {
+		StorageMetadata(e.cfg).Before(ctx)
+	}
+	if err := StorageMetadata(e.cfg).Action(ctx); err != nil {
+		panic(err)
+	}
+}
+
+func (e StorageMetadataSupervisedService) Stop() {
+	e.cancel()
 }

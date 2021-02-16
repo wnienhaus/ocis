@@ -1,7 +1,7 @@
 package runtime
 
 import (
-	"flag"
+	"context"
 	"fmt"
 	golog "log"
 	"net/rpc"
@@ -9,27 +9,21 @@ import (
 	"os/signal"
 	"time"
 
+	storage "github.com/owncloud/ocis/storage/pkg/command"
+	storageConfig "github.com/owncloud/ocis/storage/pkg/config"
+
+	"github.com/thejerf/suture"
+
+	accounts "github.com/owncloud/ocis/accounts/pkg/command"
 	settings "github.com/owncloud/ocis/settings/pkg/command"
 
 	"github.com/micro/go-micro/v2"
-	glauth "github.com/owncloud/ocis/glauth/pkg/command"
-	idp "github.com/owncloud/ocis/idp/pkg/command"
-	ocs "github.com/owncloud/ocis/ocs/pkg/command"
-	onlyoffice "github.com/owncloud/ocis/onlyoffice/pkg/command"
-	proxy "github.com/owncloud/ocis/proxy/pkg/command"
-	storage "github.com/owncloud/ocis/storage/pkg/command"
-	storageCfg "github.com/owncloud/ocis/storage/pkg/config"
-	store "github.com/owncloud/ocis/store/pkg/command"
-	thumbnails "github.com/owncloud/ocis/thumbnails/pkg/command"
-	web "github.com/owncloud/ocis/web/pkg/command"
-	webdav "github.com/owncloud/ocis/webdav/pkg/command"
 
 	"github.com/owncloud/ocis/ocis/pkg/config"
 
 	cli "github.com/micro/cli/v2"
 	"github.com/micro/micro/v2/client/api"
 	"github.com/micro/micro/v2/service/registry"
-	accounts "github.com/owncloud/ocis/accounts/pkg/command"
 
 	"github.com/owncloud/ocis/ocis/pkg/runtime/process"
 )
@@ -92,116 +86,51 @@ func New(cfg *config.Config) Runtime {
 	}
 }
 
-type exec func() error
+type AccountsService struct {
+	ctx    context.Context
+	cancel context.CancelFunc // used to cancel the context go-micro services used to shutdown a service.
+	sig    *chan struct{}     // used to control the order of initialization is deterministic.
+	cfg    *config.Config
+}
+
+// TODO(refs) use functional options to initialize a proper AccountsService
+func (e AccountsService) Serve() {
+	e.cfg.Accounts.C = e.sig
+	if err := accounts.Execute(e.cfg.Accounts); err != nil {
+		panic(err)
+	}
+}
+
+func (e AccountsService) Stop() {
+	e.cancel()
+}
 
 // Start rpc runtime
 func (r *Runtime) Start() error {
 	halt := make(chan os.Signal, 1)
 	signal.Notify(halt, os.Interrupt)
-	scfg := storageCfg.New() // need to make a copy because deep down in the storage values are copies.
 
-	// we can do this because storages parse flags when the command is called. By this point we are only interested
-	// in propagating the top level configuration from oCIS down to the storages. And it just so happen that it only
-	// contain log information, so each and every service log in the same way.
+	supervisor := suture.NewSimple("ocis")
+	globalCtx, globalCancel := context.WithCancel(context.Background())
+	defer globalCancel()
+
+	// TODO(refs) storate the suture.ServiceToken in order to remove a service. Combine this with canceling the context
+	// so micro unregisters it from the service registry.
+	settingsCtx, settingsCancel := context.WithCancel(globalCtx)
+	supervisor.Add(settings.NewSutureService(settingsCtx, settingsCancel, r.c.Settings))
+
+	scfg := storageConfig.New()
 	scfg.Log.Color = r.c.Log.Color
 	scfg.Log.Pretty = r.c.Log.Pretty
 	scfg.Log.Level = r.c.Log.Level
+	storageMetadataCtx, storageMetadataCancel := context.WithCancel(globalCtx)
+	supervisor.Add(storage.NewStorageMetadataSutureService(storageMetadataCtx, storageMetadataCancel, scfg))
 
-	seq := make(chan struct{}, 1)
-	defer close(seq)
-	scfg.C = &seq
-
-	detachStorage([]*cli.Command{storage.StorageMetadata(scfg)}, seq)
-
-	storages := []*cli.Command{
-		storage.StoragePublicLink(scfg),
-		storage.StorageUsers(scfg),
-		storage.Users(scfg),
-		storage.StorageHome(scfg),
-		storage.Frontend(scfg),
-		storage.Gateway(scfg),
-		storage.AuthBearer(scfg),
-		storage.AuthBasic(scfg),
-	}
-
-	detachStorage(storages, seq)
-
-	// settings need to be up before the accounts service is up and running
-	r.c.Settings.C = &seq
-	go settings.Execute(r.c.Settings)
-	<-seq
-
-	r.c.IDP.C = &seq
-	go idp.Execute(r.c.IDP)
-	<-seq
-
-	r.c.GLAuth.C = &seq
-	go glauth.Execute(r.c.GLAuth)
-	<-seq
-
-	r.c.OCS.C = &seq
-	go ocs.Execute(r.c.OCS)
-	<-seq
-
-	r.c.Onlyoffice.C = &seq
-	go onlyoffice.Execute(r.c.Onlyoffice)
-	<-seq
-
-	r.c.Proxy.C = &seq
-	go proxy.Execute(r.c.Proxy)
-	<-seq
-
-	r.c.Store.C = &seq
-	go store.Execute(r.c.Store)
-	<-seq
-
-	r.c.Thumbnails.C = &seq
-	go thumbnails.Execute(r.c.Thumbnails)
-	<-seq
-
-	r.c.Web.C = &seq
-	go web.Execute(r.c.Web)
-	<-seq
-
-	r.c.WebDAV.C = &seq
-	go webdav.Execute(r.c.WebDAV)
-	<-seq
-
-	r.c.Accounts.C = &seq
-	go accounts.Execute(r.c.Accounts)
-	<-seq
-
-	detachStorage([]*cli.Command{storage.Sharing(scfg)}, nil)
+	go supervisor.ServeBackground()
 
 	<-halt
 	return nil
 }
-
-func detachStorage(storages []*cli.Command, c chan struct{}) {
-	for i := range storages {
-		a := i
-		go func(z int) {
-			f := &flag.FlagSet{}
-			for k := range storages[z].Flags {
-				storages[z].Flags[k].Apply(f)
-			}
-			ctx := cli.NewContext(nil, f, nil)
-			if storages[z].Before != nil {
-				storages[z].Before(ctx)
-			}
-			storages[z].Action(ctx)
-		}(a)
-		<-c
-	}
-}
-
-// detachExtensions ensures that extension goroutines are ensured to un always the same order. This is due to
-// side effects when initializing them; sometimes blocking waiting for a port simply does not cut it because
-// such threads are running behind the service registry, and ports are unknown. If we wish to improve in the
-// future on this, then we have to bring the service registry and / or messages (NATS) to the mix.
-//func detachExtensions() {
-//
-//}
 
 // Launch oCIS default oCIS extensions.
 func (r *Runtime) Launch() {

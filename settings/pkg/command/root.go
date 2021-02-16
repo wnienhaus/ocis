@@ -1,6 +1,7 @@
 package command
 
 import (
+	"context"
 	"os"
 	"strings"
 
@@ -101,4 +102,28 @@ func ParseConfig(c *cli.Context, cfg *config.Config) error {
 	}
 
 	return nil
+}
+
+type SutureService struct {
+	ctx    context.Context
+	cancel context.CancelFunc // used to cancel the context go-micro services used to shutdown a service.
+	cfg    *config.Config
+}
+
+func NewSutureService(ctx context.Context, cancel context.CancelFunc, cfg *config.Config) SutureService {
+	return SutureService{
+		ctx:    ctx,
+		cancel: cancel,
+		cfg:    cfg,
+	}
+}
+
+func (s SutureService) Serve() {
+	if err := Execute(s.cfg); err != nil {
+		panic(err)
+	}
+}
+
+func (s SutureService) Stop() {
+	s.cancel()
 }
