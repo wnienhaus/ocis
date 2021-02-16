@@ -100,9 +100,10 @@ func (r *Runtime) Start() error {
 	tokens := serviceTokens{}
 
 	supervisor := suture.NewSimple("ocis")
-	globalCtx, globalCancel := context.WithCancel(context.Background())
+	globalCtx, _ := context.WithCancel(context.Background())
 
 	settingsCtx, settingsCancel := context.WithCancel(globalCtx)
+	r.c.Settings.Context = settingsCtx
 	tokens["settings"] = append(tokens["settings"], supervisor.Add(settings.NewSutureService(settingsCtx, settingsCancel, r.c.Settings)))
 
 	scfg := storageConfig.New()
@@ -110,6 +111,7 @@ func (r *Runtime) Start() error {
 	scfg.Log.Pretty = r.c.Log.Pretty
 	scfg.Log.Level = r.c.Log.Level
 	storageMetadataCtx, storageMetadataCancel := context.WithCancel(globalCtx)
+	scfg.Context = storageMetadataCtx
 	tokens["storage-metadata"] = append(tokens["storage-metadata"], supervisor.Add(storage.NewStorageMetadataSutureService(storageMetadataCtx, storageMetadataCancel, scfg)))
 
 	accountsCtx, accountsCancel := context.WithCancel(globalCtx)
@@ -120,7 +122,7 @@ func (r *Runtime) Start() error {
 
 	<-halt
 	close(halt)
-	globalCancel()
+	//globalCancel()
 	return nil
 }
 

@@ -1,5 +1,7 @@
 package config
 
+import "context"
+
 // Log defines the available logging configuration.
 type Log struct {
 	Level  string
@@ -341,6 +343,7 @@ type Asset struct {
 
 // Config combines all available configuration parts.
 type Config struct {
+	Context context.Context
 	File    string
 	Log     Log
 	Debug   Debug

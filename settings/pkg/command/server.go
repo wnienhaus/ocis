@@ -129,9 +129,12 @@ func Server(cfg *config.Config) *cli.Command {
 					Msg("Tracing is not enabled")
 			}
 
+			if cfg.Context == nil {
+				cfg.Context = context.Background()
+			}
 			var (
 				gr          = run.Group{}
-				ctx, cancel = context.WithCancel(context.Background())
+				ctx, cancel = context.WithCancel(cfg.Context)
 				mtrcs       = metrics.New()
 			)
 
@@ -192,11 +195,6 @@ func Server(cfg *config.Config) *cli.Command {
 				}
 
 				gr.Add(server.ListenAndServe, func(_ error) {
-					ctx, timeout := context.WithTimeout(ctx, 5*time.Second)
-
-					defer timeout()
-					defer cancel()
-
 					if err := server.Shutdown(ctx); err != nil {
 						logger.Error().
 							Err(err).

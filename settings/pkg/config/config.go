@@ -1,5 +1,7 @@
 package config
 
+import "context"
+
 // Log defines the available logging configuration.
 type Log struct {
 	Level  string
@@ -67,7 +69,8 @@ type Config struct {
 	Asset        Asset
 	TokenManager TokenManager
 
-	C *chan struct{}
+	Context context.Context
+	C       *chan struct{}
 }
 
 // New initializes a new configuration with or without defaults.

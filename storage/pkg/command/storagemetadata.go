@@ -66,10 +66,15 @@ func StorageMetadata(cfg *config.Config) *cli.Command {
 				logger.Debug().
 					Msg("Tracing is not enabled")
 			}
+			stop := make(chan os.Signal, 1)
+			signal.Notify(stop, os.Interrupt)
 
+			if cfg.Context == nil {
+				cfg.Context = context.Background()
+			}
 			var (
 				gr          = run.Group{}
-				ctx, cancel = context.WithCancel(context.Background())
+				ctx, cancel = context.WithCancel(cfg.Context)
 			)
 
 			defer cancel()
@@ -133,11 +138,7 @@ func StorageMetadata(cfg *config.Config) *cli.Command {
 				}
 
 				gr.Add(func() error {
-					runtime.RunWithOptions(
-						rcfg,
-						pidFile,
-						runtime.WithLogger(&logger.Logger),
-					)
+					runtime.RunWithOptions(rcfg, pidFile, runtime.WithLogger(&logger.Logger))
 					return nil
 				}, func(_ error) {
 					logger.Info().
@@ -187,25 +188,10 @@ func StorageMetadata(cfg *config.Config) *cli.Command {
 				})
 			}
 
-			{
-				stop := make(chan os.Signal, 1)
+			go gr.Run()
+			<-stop
 
-				gr.Add(func() error {
-					signal.Notify(stop, os.Interrupt)
-					<-stop
-
-					return nil
-				}, func(err error) {
-					close(stop)
-					cancel()
-				})
-			}
-
-			// the defensive code is needed because sending to a nil channel blocks forever
-			if cfg.C != nil {
-				*cfg.C <- struct{}{}
-			}
-			return gr.Run()
+			return nil
 		},
 	}
 }
