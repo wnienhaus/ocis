@@ -9,7 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/owncloud/ocis/ocis-pkg/service/grpc"
+	grpctransport "github.com/asim/go-micro/plugins/transport/grpc/v3"
+	"github.com/asim/go-micro/v3/client"
+	grpccodec "github.com/asim/go-micro/v3/codec/grpc"
 
 	"github.com/owncloud/ocis/accounts/pkg/storage"
 	"github.com/owncloud/ocis/ocis-pkg/indexer"
@@ -32,10 +34,15 @@ func New(opts ...Option) (s *Service, err error) {
 	options := newOptions(opts...)
 	logger := options.Logger
 	cfg := options.Config
+	c := client.NewClient(
+		client.ContentType("application/grpc+proto"),
+		client.Transport(grpctransport.NewTransport()),
+		client.Codec("application/grpc+proto", grpccodec.NewCodec),
+	)
 
 	roleService := options.RoleService
 	if roleService == nil {
-		roleService = settings.NewRoleService("com.owncloud.api.settings", grpc.DefaultClient)
+		roleService = settings.NewRoleService("com.owncloud.api.settings", c)
 	}
 	roleManager := options.RoleManager
 	if roleManager == nil {

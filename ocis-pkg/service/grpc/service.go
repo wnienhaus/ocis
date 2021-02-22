@@ -4,11 +4,15 @@ import (
 	"strings"
 	"time"
 
+	grpctransport "github.com/asim/go-micro/plugins/transport/grpc/v3"
+
+	grpccodec "github.com/asim/go-micro/v3/codec/grpc"
+
 	mgrpcc "github.com/asim/go-micro/plugins/client/grpc/v3"
-	mgrpcs "github.com/asim/go-micro/plugins/server/grpc/v3"
 	"github.com/asim/go-micro/plugins/wrapper/monitoring/prometheus/v3"
 	"github.com/asim/go-micro/plugins/wrapper/trace/opencensus/v3"
 	"github.com/asim/go-micro/v3"
+	sserv "github.com/asim/go-micro/v3/server"
 	"github.com/owncloud/ocis/ocis-pkg/registry"
 )
 
@@ -31,7 +35,8 @@ func NewService(opts ...Option) Service {
 
 	mopts := []micro.Option{
 		// first add a server because it will reset any options
-		micro.Server(mgrpcs.NewServer()),
+		//micro.Server(mgrpcs.NewServer()),
+		micro.Server(sserv.NewServer(sserv.Codec("application/grpc+proto", grpccodec.NewCodec), sserv.Transport(grpctransport.NewTransport()))),
 		// also add a client that can be used after initializing the service
 		micro.Client(DefaultClient),
 		micro.Address(sopts.Address),

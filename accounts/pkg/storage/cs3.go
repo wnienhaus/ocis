@@ -12,15 +12,16 @@ import (
 	"strconv"
 	"strings"
 
+	grpcclient "github.com/asim/go-micro/plugins/client/grpc/v3"
+
+	"github.com/owncloud/ocis/accounts/pkg/proto/v0"
+
 	user "github.com/cs3org/go-cs3apis/cs3/identity/user/v1beta1"
 	v1beta11 "github.com/cs3org/go-cs3apis/cs3/rpc/v1beta1"
-	provider "github.com/cs3org/go-cs3apis/cs3/storage/provider/v1beta1"
 	types "github.com/cs3org/go-cs3apis/cs3/types/v1beta1"
-	"github.com/cs3org/reva/pkg/rgrpc/todo/pool"
 	"github.com/cs3org/reva/pkg/token"
 	"github.com/cs3org/reva/pkg/token/manager/jwt"
 	"github.com/owncloud/ocis/accounts/pkg/config"
-	"github.com/owncloud/ocis/accounts/pkg/proto/v0"
 	olog "github.com/owncloud/ocis/ocis-pkg/log"
 	"google.golang.org/grpc/metadata"
 )
@@ -29,7 +30,7 @@ import (
 type CS3Repo struct {
 	cfg             *config.Config
 	tm              token.Manager
-	storageProvider provider.ProviderAPIClient
+	storageProvider proto.ProviderAPIService
 	dataProvider    dataProviderClient // Used to create and download data via http, bypassing reva upload protocol
 }
 
@@ -43,7 +44,14 @@ func NewCS3Repo(cfg *config.Config) (Repo, error) {
 		return nil, err
 	}
 
-	client, err := pool.GetStorageProviderServiceClient(cfg.Repo.CS3.ProviderAddr)
+	//c2 := client.NewClient(
+	//	client.ContentType("application/grpc+proto"),
+	//	client.Transport(grpctransport.NewTransport()),
+	//	client.Codec("application/grpc+proto", grpccodec.NewCodec),
+	//)
+
+	c2 := grpcclient.NewClient()
+	service := proto.NewProviderAPIService("com.owncloud.storage.metadata", c2)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +59,7 @@ func NewCS3Repo(cfg *config.Config) (Repo, error) {
 	return CS3Repo{
 		cfg:             cfg,
 		tm:              tokenManager,
-		storageProvider: client,
+		storageProvider: service,
 		dataProvider: dataProviderClient{
 			client: http.Client{
 				Transport: http.DefaultTransport,
@@ -105,9 +113,9 @@ func (r CS3Repo) LoadAccounts(ctx context.Context, a *[]*proto.Account) (err err
 	}
 
 	ctx = metadata.AppendToOutgoingContext(ctx, token.TokenHeader, t)
-	res, err := r.storageProvider.ListContainer(ctx, &provider.ListContainerRequest{
-		Ref: &provider.Reference{
-			Spec: &provider.Reference_Path{Path: path.Join("/meta", accountsFolder)},
+	res, err := r.storageProvider.ListContainer(ctx, &proto.ListContainerRequest{
+		Ref: &proto.Reference{
+			Spec: &proto.Reference_Path{Path: path.Join("/meta", accountsFolder)},
 		},
 	})
 	if err != nil {
@@ -156,9 +164,9 @@ func (r CS3Repo) DeleteAccount(ctx context.Context, id string) (err error) {
 
 	ctx = metadata.AppendToOutgoingContext(ctx, token.TokenHeader, t)
 
-	resp, err := r.storageProvider.Delete(ctx, &provider.DeleteRequest{
-		Ref: &provider.Reference{
-			Spec: &provider.Reference_Path{Path: path.Join("/meta", accountsFolder, id)},
+	resp, err := r.storageProvider.Delete(ctx, &proto.DeleteRequest{
+		Ref: &proto.Reference{
+			Spec: &proto.Reference_Path{Path: path.Join("/meta", accountsFolder, id)},
 		},
 	})
 
@@ -219,9 +227,9 @@ func (r CS3Repo) LoadGroups(ctx context.Context, g *[]*proto.Group) (err error) 
 	}
 
 	ctx = metadata.AppendToOutgoingContext(ctx, token.TokenHeader, t)
-	res, err := r.storageProvider.ListContainer(ctx, &provider.ListContainerRequest{
-		Ref: &provider.Reference{
-			Spec: &provider.Reference_Path{Path: path.Join("/meta", groupsFolder)},
+	res, err := r.storageProvider.ListContainer(ctx, &proto.ListContainerRequest{
+		Ref: &proto.Reference{
+			Spec: &proto.Reference_Path{Path: path.Join("/meta", groupsFolder)},
 		},
 	})
 	if err != nil {
@@ -270,9 +278,9 @@ func (r CS3Repo) DeleteGroup(ctx context.Context, id string) (err error) {
 
 	ctx = metadata.AppendToOutgoingContext(ctx, token.TokenHeader, t)
 
-	resp, err := r.storageProvider.Delete(ctx, &provider.DeleteRequest{
-		Ref: &provider.Reference{
-			Spec: &provider.Reference_Path{Path: path.Join("/meta", groupsFolder, id)},
+	resp, err := r.storageProvider.Delete(ctx, &proto.DeleteRequest{
+		Ref: &proto.Reference{
+			Spec: &proto.Reference_Path{Path: path.Join("/meta", groupsFolder, id)},
 		},
 	})
 
@@ -328,12 +336,12 @@ func (r CS3Repo) makeRootDirIfNotExist(ctx context.Context, folder string) error
 }
 
 // MakeDirIfNotExist will create a root node in the metadata storage. Requires an authenticated context.
-func MakeDirIfNotExist(ctx context.Context, sp provider.ProviderAPIClient, folder string) error {
-	var rootPathRef = &provider.Reference{
-		Spec: &provider.Reference_Path{Path: path.Join("/meta", folder)},
+func MakeDirIfNotExist(ctx context.Context, sp proto.ProviderAPIService, folder string) error {
+	var rootPathRef = &proto.Reference{
+		Spec: &proto.Reference_Path{Path: path.Join("/meta", folder)},
 	}
 
-	resp, err := sp.Stat(ctx, &provider.StatRequest{
+	resp, err := sp.Stat(ctx, &proto.StatRequest{
 		Ref: rootPathRef,
 	})
 
@@ -342,7 +350,7 @@ func MakeDirIfNotExist(ctx context.Context, sp provider.ProviderAPIClient, folde
 	}
 
 	if resp.Status.Code == v1beta11.Code_CODE_NOT_FOUND {
-		_, err := sp.CreateContainer(ctx, &provider.CreateContainerRequest{
+		_, err := sp.CreateContainer(ctx, &proto.CreateContainerRequest{
 			Ref: rootPathRef,
 		})
 

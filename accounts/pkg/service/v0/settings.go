@@ -2,9 +2,13 @@ package service
 
 import (
 	"context"
+	"time"
 
+	"github.com/asim/go-micro/v3/client"
+
+	grpctransport "github.com/asim/go-micro/plugins/transport/grpc/v3"
+	grpccodec "github.com/asim/go-micro/v3/codec/grpc"
 	olog "github.com/owncloud/ocis/ocis-pkg/log"
-	"github.com/owncloud/ocis/ocis-pkg/service/grpc"
 	settings "github.com/owncloud/ocis/settings/pkg/proto/v0"
 	ssvc "github.com/owncloud/ocis/settings/pkg/service/v0"
 )
@@ -15,29 +19,37 @@ const (
 
 // RegisterSettingsBundles pushes the settings bundle definitions for this extension to the ocis-settings service.
 func RegisterSettingsBundles(l *olog.Logger) {
-	service := settings.NewBundleService("com.owncloud.api.settings", grpc.DefaultClient)
+	c2 := client.NewClient(
+		client.ContentType("application/grpc+proto"),
+		client.Transport(grpctransport.NewTransport()),
+		client.Codec("application/grpc+proto", grpccodec.NewCodec),
+	)
 
 	bundleRequests := []settings.SaveBundleRequest{
 		generateBundleProfileRequest(),
 	}
 
 	for i := range bundleRequests {
-		res, err := service.SaveBundle(context.Background(), &bundleRequests[i])
-		if err != nil {
+		req := c2.NewRequest("com.owncloud.api.settings", "BundleService.SaveBundle", &bundleRequests[i])
+		ctx, _ := context.WithDeadline(context.Background(), time.Now().Add(5*time.Second))
+		resp := &settings.SaveBundleResponse{}
+		if err := c2.Call(ctx, req, resp); err != nil {
 			l.Err(err).Str("bundle", bundleRequests[i].Bundle.Id).Msg("Error registering bundle")
 		} else {
-			l.Info().Str("bundle", res.Bundle.Id).Msg("Successfully registered bundle")
+			l.Info().Str("bundle", resp.Bundle.Id).Msg("Successfully registered bundle")
 		}
 	}
 
 	permissionRequests := generateProfilePermissionsRequests()
 	for i := range permissionRequests {
-		res, err := service.AddSettingToBundle(context.Background(), &permissionRequests[i])
+		req := c2.NewRequest("com.owncloud.api.settings", "BundleService.AddSettingToBundle", &permissionRequests[i])
+		ctx, _ := context.WithDeadline(context.Background(), time.Now().Add(5*time.Second))
+		resp := &settings.SaveBundleResponse{}
 		bundleID := permissionRequests[i].BundleId
-		if err != nil {
+		if err := c2.Call(ctx, req, resp); err != nil {
 			l.Err(err).Str("bundle", bundleID).Str("setting", permissionRequests[i].Setting.Id).Msg("Error adding setting to bundle")
 		} else {
-			l.Info().Str("bundle", bundleID).Str("setting", res.Setting.Id).Msg("Successfully added setting to bundle")
+			l.Info().Str("bundle", bundleID).Str("setting", permissionRequests[i].Setting.Id).Msg("Successfully added setting to bundle")
 		}
 	}
 }

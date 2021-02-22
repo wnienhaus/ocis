@@ -30,6 +30,6 @@ func Server(opts ...Option) grpc.Service {
 		options.Logger.Fatal().Err(err).Msg("could not register index handler")
 	}
 
-	service.Init()
+	//service.Init()
 	return service
 }

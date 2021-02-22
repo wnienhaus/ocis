@@ -12,13 +12,15 @@ import (
 	"strconv"
 	"strings"
 
+	grpcclient "github.com/asim/go-micro/plugins/client/grpc/v3"
+
+	"github.com/owncloud/ocis/accounts/pkg/proto/v0"
+
 	"github.com/owncloud/ocis/accounts/pkg/storage"
 
 	idxerrs "github.com/owncloud/ocis/ocis-pkg/indexer/errors"
 
 	v1beta11 "github.com/cs3org/go-cs3apis/cs3/rpc/v1beta1"
-	provider "github.com/cs3org/go-cs3apis/cs3/storage/provider/v1beta1"
-	"github.com/cs3org/reva/pkg/rgrpc/todo/pool"
 	"github.com/cs3org/reva/pkg/token"
 	"github.com/cs3org/reva/pkg/token/manager/jwt"
 	"google.golang.org/grpc/metadata"
@@ -37,7 +39,7 @@ type Autoincrement struct {
 	indexRootDir string
 
 	tokenManager    token.Manager
-	storageProvider provider.ProviderAPIClient
+	storageProvider proto.ProviderAPIService
 	dataProvider    dataProviderClient // Used to create and download data via http, bypassing reva upload protocol
 
 	cs3conf *Config
@@ -92,11 +94,15 @@ func (idx *Autoincrement) Init() error {
 
 	idx.tokenManager = tokenManager
 
-	client, err := pool.GetStorageProviderServiceClient(idx.cs3conf.ProviderAddr)
-	if err != nil {
-		return err
-	}
+	//c2 := client.NewClient(
+	//	client.ContentType("application/grpc+proto"),
+	//	client.Transport(grpctransport.NewTransport()),
+	//	client.Codec("application/grpc+proto", grpccodec.NewCodec),
+	//)
 
+	c2 := grpcclient.NewClient()
+
+	client := proto.NewProviderAPIService("com.owncloud.storage.metadata", c2)
 	idx.storageProvider = client
 
 	ctx, err := idx.getAuthenticatedContext(context.Background())
@@ -174,9 +180,9 @@ func (idx *Autoincrement) Remove(id string, v string) error {
 	}
 
 	deletePath := path.Join("/meta", idx.indexRootDir, v)
-	resp, err := idx.storageProvider.Delete(ctx, &provider.DeleteRequest{
-		Ref: &provider.Reference{
-			Spec: &provider.Reference_Path{Path: deletePath},
+	resp, err := idx.storageProvider.Delete(ctx, &proto.DeleteRequest{
+		Ref: &proto.Reference{
+			Spec: &proto.Reference_Path{Path: deletePath},
 		},
 	})
 
@@ -212,9 +218,9 @@ func (idx *Autoincrement) Search(pattern string) ([]string, error) {
 		return nil, err
 	}
 
-	res, err := idx.storageProvider.ListContainer(ctx, &provider.ListContainerRequest{
-		Ref: &provider.Reference{
-			Spec: &provider.Reference_Path{Path: path.Join("/meta", idx.indexRootDir)},
+	res, err := idx.storageProvider.ListContainer(ctx, &proto.ListContainerRequest{
+		Ref: &proto.Reference{
+			Spec: &proto.Reference_Path{Path: path.Join("/meta", idx.indexRootDir)},
 		},
 	})
 
@@ -325,9 +331,9 @@ func (idx *Autoincrement) next() (int, error) {
 		return -1, err
 	}
 
-	res, err := idx.storageProvider.ListContainer(ctx, &provider.ListContainerRequest{
-		Ref: &provider.Reference{
-			Spec: &provider.Reference_Path{Path: path.Join("/meta", idx.indexRootDir)},
+	res, err := idx.storageProvider.ListContainer(ctx, &proto.ListContainerRequest{
+		Ref: &proto.Reference{
+			Spec: &proto.Reference_Path{Path: path.Join("/meta", idx.indexRootDir)},
 		},
 	})
 

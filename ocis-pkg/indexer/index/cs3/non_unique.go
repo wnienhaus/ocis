@@ -10,11 +10,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	grpcclient "github.com/asim/go-micro/plugins/client/grpc/v3"
+
+	"github.com/owncloud/ocis/accounts/pkg/proto/v0"
 	"github.com/owncloud/ocis/accounts/pkg/storage"
 
 	v1beta11 "github.com/cs3org/go-cs3apis/cs3/rpc/v1beta1"
-	provider "github.com/cs3org/go-cs3apis/cs3/storage/provider/v1beta1"
-	"github.com/cs3org/reva/pkg/rgrpc/todo/pool"
 	"github.com/cs3org/reva/pkg/token"
 	"github.com/cs3org/reva/pkg/token/manager/jwt"
 	idxerrs "github.com/owncloud/ocis/ocis-pkg/indexer/errors"
@@ -38,7 +39,7 @@ type NonUnique struct {
 	indexRootDir    string
 
 	tokenManager    token.Manager
-	storageProvider provider.ProviderAPIClient
+	storageProvider proto.ProviderAPIService
 	dataProvider    dataProviderClient // Used to create and download data via http, bypassing reva upload protocol
 
 	cs3conf *Config
@@ -94,11 +95,15 @@ func (idx *NonUnique) Init() error {
 
 	idx.tokenManager = tokenManager
 
-	client, err := pool.GetStorageProviderServiceClient(idx.cs3conf.ProviderAddr)
-	if err != nil {
-		return err
-	}
+	//c2 := client.NewClient(
+	//	client.ContentType("application/grpc+proto"),
+	//	client.Transport(grpctransport.NewTransport()),
+	//	client.Codec("application/grpc+proto", grpccodec.NewCodec),
+	//)
 
+	c2 := grpcclient.NewClient()
+
+	client := proto.NewProviderAPIService("com.owncloud.storage.metadata", c2)
 	idx.storageProvider = client
 
 	ctx := context.Background()
@@ -130,9 +135,9 @@ func (idx *NonUnique) Lookup(v string) ([]string, error) {
 		return nil, err
 	}
 
-	res, err := idx.storageProvider.ListContainer(ctx, &provider.ListContainerRequest{
-		Ref: &provider.Reference{
-			Spec: &provider.Reference_Path{Path: path.Join("/meta", idx.indexRootDir, v)},
+	res, err := idx.storageProvider.ListContainer(ctx, &proto.ListContainerRequest{
+		Ref: &proto.Reference{
+			Spec: &proto.Reference_Path{Path: path.Join("/meta", idx.indexRootDir, v)},
 		},
 	})
 
@@ -190,9 +195,9 @@ func (idx *NonUnique) Remove(id string, v string) error {
 	}
 
 	deletePath := path.Join("/meta", idx.indexRootDir, v, id)
-	resp, err := idx.storageProvider.Delete(ctx, &provider.DeleteRequest{
-		Ref: &provider.Reference{
-			Spec: &provider.Reference_Path{Path: deletePath},
+	resp, err := idx.storageProvider.Delete(ctx, &proto.DeleteRequest{
+		Ref: &proto.Reference{
+			Spec: &proto.Reference_Path{Path: deletePath},
 		},
 	})
 
@@ -205,9 +210,9 @@ func (idx *NonUnique) Remove(id string, v string) error {
 	}
 
 	toStat := path.Join("/meta", idx.indexRootDir, v)
-	lcResp, err := idx.storageProvider.ListContainer(ctx, &provider.ListContainerRequest{
-		Ref: &provider.Reference{
-			Spec: &provider.Reference_Path{Path: toStat},
+	lcResp, err := idx.storageProvider.ListContainer(ctx, &proto.ListContainerRequest{
+		Ref: &proto.Reference{
+			Spec: &proto.Reference_Path{Path: toStat},
 		},
 	})
 	if err != nil {
@@ -216,9 +221,9 @@ func (idx *NonUnique) Remove(id string, v string) error {
 
 	if len(lcResp.Infos) == 0 {
 		deletePath = path.Join("/meta", idx.indexRootDir, v)
-		_, err := idx.storageProvider.Delete(ctx, &provider.DeleteRequest{
-			Ref: &provider.Reference{
-				Spec: &provider.Reference_Path{Path: deletePath},
+		_, err := idx.storageProvider.Delete(ctx, &proto.DeleteRequest{
+			Ref: &proto.Reference{
+				Spec: &proto.Reference_Path{Path: deletePath},
 			},
 		})
 		if err != nil {
@@ -260,9 +265,9 @@ func (idx *NonUnique) Search(pattern string) ([]string, error) {
 
 	foldersMatched := make([]string, 0)
 	matches := make([]string, 0)
-	res, err := idx.storageProvider.ListContainer(ctx, &provider.ListContainerRequest{
-		Ref: &provider.Reference{
-			Spec: &provider.Reference_Path{Path: path.Join("/meta", idx.indexRootDir)},
+	res, err := idx.storageProvider.ListContainer(ctx, &proto.ListContainerRequest{
+		Ref: &proto.Reference{
+			Spec: &proto.Reference_Path{Path: path.Join("/meta", idx.indexRootDir)},
 		},
 	})
 
@@ -281,9 +286,9 @@ func (idx *NonUnique) Search(pattern string) ([]string, error) {
 	}
 
 	for i := range foldersMatched {
-		res, _ := idx.storageProvider.ListContainer(ctx, &provider.ListContainerRequest{
-			Ref: &provider.Reference{
-				Spec: &provider.Reference_Path{Path: foldersMatched[i]},
+		res, _ := idx.storageProvider.ListContainer(ctx, &proto.ListContainerRequest{
+			Ref: &proto.Reference{
+				Spec: &proto.Reference_Path{Path: foldersMatched[i]},
 			},
 		})
 

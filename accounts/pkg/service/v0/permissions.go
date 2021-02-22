@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 
-	"github.com/owncloud/ocis/ocis-pkg/service/grpc"
+	grpctransport "github.com/asim/go-micro/plugins/transport/grpc/v3"
+	"github.com/asim/go-micro/v3/client"
+	grpccodec "github.com/asim/go-micro/v3/codec/grpc"
 
 	olog "github.com/owncloud/ocis/ocis-pkg/log"
 	settings "github.com/owncloud/ocis/settings/pkg/proto/v0"
@@ -27,7 +29,12 @@ const (
 
 // RegisterPermissions registers permissions for account management and group management with the settings service.
 func RegisterPermissions(l *olog.Logger) {
-	service := settings.NewBundleService("com.owncloud.api.settings", grpc.DefaultClient)
+	c2 := client.NewClient(
+		client.ContentType("application/grpc+proto"),
+		client.Transport(grpctransport.NewTransport()),
+		client.Codec("application/grpc+proto", grpccodec.NewCodec),
+	)
+	service := settings.NewBundleService("com.owncloud.api.settings", c2)
 
 	permissionRequests := generateAccountManagementPermissionsRequests()
 	for i := range permissionRequests {

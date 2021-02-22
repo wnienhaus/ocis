@@ -14,6 +14,7 @@ import (
 	"github.com/owncloud/ocis/storage/pkg/config"
 	"github.com/owncloud/ocis/storage/pkg/flagset"
 	"github.com/owncloud/ocis/storage/pkg/server/debug"
+	"github.com/owncloud/ocis/storage/pkg/service/external"
 )
 
 // StorageMetadata the entrypoint for the storage-storage-metadata command.
@@ -133,6 +134,22 @@ func StorageMetadata(cfg *config.Config) *cli.Command {
 				}
 
 				gr.Add(func() error {
+					external.RegisterGRPCEndpoint(
+						ctx,
+						"com.owncloud.storage.metadata",
+						"", //uuid.String(),
+						cfg.Reva.StorageMetadata.GRPCAddr,
+						logger,
+					)
+					//
+					//s := ogrpc.NewService(
+					//	ogrpc.Namespace("com.owncloud"),
+					//	ogrpc.Name("storage.metadata"),
+					//	ogrpc.Address(cfg.Reva.StorageMetadata.GRPCAddr),
+					//)
+
+					//s.Init()
+
 					runtime.RunWithOptions(
 						rcfg,
 						pidFile,
