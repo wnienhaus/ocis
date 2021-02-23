@@ -8,6 +8,19 @@ import (
 // AuthBearerWithConfig applies cfg to the root flagset
 func AuthBearerWithConfig(cfg *config.Config) []cli.Flag {
 	flags := []cli.Flag{
+		&cli.StringFlag{
+			Name:        "name",
+			Value:       "authprovider",
+			Usage:       "TODO",
+			EnvVars:     []string{"STORAGE_AUTH_PROVIDER_NAME"},
+			Destination: &cfg.Reva.AuthProvider.Name,
+		}, &cli.StringFlag{
+			Name:        "namespace",
+			Value:       "com.owncloud",
+			Usage:       "TODO",
+			EnvVars:     []string{"STORAGE_AUTH_PROVIDER_NAMESPACE"},
+			Destination: &cfg.Reva.AuthProvider.Namespace,
+		},
 
 		// debug ports are the odd ports
 		&cli.StringFlag{
@@ -66,26 +79,6 @@ func AuthBearerWithConfig(cfg *config.Config) []cli.Flag {
 
 		// AuthBearer
 
-		&cli.StringFlag{
-			Name:        "network",
-			Value:       "tcp",
-			Usage:       "Network to use for the storage service, can be 'tcp', 'udp' or 'unix'",
-			EnvVars:     []string{"STORAGE_AUTH_BEARER_GRPC_NETWORK"},
-			Destination: &cfg.Reva.AuthBearer.GRPCNetwork,
-		},
-		&cli.StringFlag{
-			Name:        "addr",
-			Value:       "0.0.0.0:9148",
-			Usage:       "Address to bind storage service",
-			EnvVars:     []string{"STORAGE_AUTH_BEARER_GRPC_ADDR"},
-			Destination: &cfg.Reva.AuthBearer.GRPCAddr,
-		},
-		&cli.StringSliceFlag{
-			Name:    "service",
-			Value:   cli.NewStringSlice("authprovider"), // TODO preferences
-			Usage:   "--service authprovider [--service otherservice]",
-			EnvVars: []string{"STORAGE_AUTH_BEARER_SERVICES"},
-		},
 	}
 
 	flags = append(flags, TracingWithConfig(cfg)...)

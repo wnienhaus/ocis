@@ -97,12 +97,12 @@ func Gateway(cfg *config.Config) *cli.Command {
 						"services": map[string]interface{}{
 							"gateway": map[string]interface{}{
 								// registries is located on the gateway
-								"authregistrysvc":    cfg.Reva.Gateway.Endpoint,
+								"authregistrysvc":    "localhost:9800",
 								"storageregistrysvc": cfg.Reva.Gateway.Endpoint,
 								"appregistrysvc":     cfg.Reva.Gateway.Endpoint,
 								// user metadata is located on the users services
-								"preferencessvc":  cfg.Reva.Users.Endpoint,
-								"userprovidersvc": cfg.Reva.Users.Endpoint,
+								"preferencessvc":   cfg.Reva.Users.Endpoint,
+								"userprovidersvc":  cfg.Reva.Users.Endpoint,
 								"groupprovidersvc": cfg.Reva.Groups.Endpoint,
 								// sharing is located on the sharing service
 								"usershareprovidersvc":          cfg.Reva.Sharing.Endpoint,
@@ -118,18 +118,6 @@ func Gateway(cfg *config.Config) *cli.Command {
 								"transfer_expires":               cfg.Reva.TransferExpires,
 								"home_mapping":                   cfg.Reva.Gateway.HomeMapping,
 								"etag_cache_ttl":                 cfg.Reva.Gateway.EtagCacheTTL,
-							},
-							"authregistry": map[string]interface{}{
-								"driver": "static",
-								"drivers": map[string]interface{}{
-									"static": map[string]interface{}{
-										"rules": map[string]interface{}{
-											"basic":        cfg.Reva.AuthBasic.Endpoint,
-											"bearer":       cfg.Reva.AuthBearer.Endpoint,
-											"publicshares": cfg.Reva.StoragePublicLink.Endpoint,
-										},
-									},
-								},
 							},
 							"storageregistry": map[string]interface{}{
 								"driver": cfg.Reva.StorageRegistry.Driver,

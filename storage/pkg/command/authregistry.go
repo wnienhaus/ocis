@@ -6,8 +6,6 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/cs3org/reva/pkg/auth"
-	"github.com/cs3org/reva/pkg/auth/manager/registry"
 	"github.com/micro/cli/v2"
 	"github.com/oklog/run"
 	"github.com/owncloud/ocis/storage/pkg/config"
@@ -15,17 +13,14 @@ import (
 	"github.com/owncloud/ocis/storage/pkg/server/debug"
 	"github.com/owncloud/ocis/storage/pkg/server/grpc"
 	svc "github.com/owncloud/ocis/storage/pkg/service/v0"
-
-	// register reva drivers
-	_ "github.com/cs3org/reva/pkg/auth/manager/loader"
 )
 
-// AuthBasic is the entrypoint for the auth-basic command.
-func AuthBasic(cfg *config.Config) *cli.Command {
+// AuthRegistry is the entrypoint for the auth-registry command.
+func AuthRegistry(cfg *config.Config) *cli.Command {
 	return &cli.Command{
-		Name:  "auth-basic",
-		Usage: "Start authprovider for basic auth",
-		Flags: flagset.AuthBasicWithConfig(cfg),
+		Name:  "auth-registry",
+		Usage: "Start cs3 authregistry",
+		Flags: flagset.AuthRegistryWithConfig(cfg),
 		Action: func(c *cli.Context) error {
 			logger := NewLogger(cfg)
 
@@ -40,45 +35,7 @@ func AuthBasic(cfg *config.Config) *cli.Command {
 			defer cancel()
 
 			// first initialize a service implementation
-			config := map[string]map[string]interface{}{
-				"demo": {},
-				"json": {
-					"users": cfg.Reva.AuthProvider.JSON,
-				},
-				"ldap": {
-					"hostname":      cfg.Reva.LDAP.Hostname,
-					"port":          cfg.Reva.LDAP.Port,
-					"base_dn":       cfg.Reva.LDAP.BaseDN,
-					"loginfilter":   cfg.Reva.LDAP.LoginFilter,
-					"bind_username": cfg.Reva.LDAP.BindDN,
-					"bind_password": cfg.Reva.LDAP.BindPassword,
-					"idp":           cfg.Reva.LDAP.IDP,
-					"gatewaysvc":    cfg.Reva.Gateway.Endpoint,
-					"schema": map[string]interface{}{
-						"dn":          "dn",
-						"uid":         cfg.Reva.LDAP.UserSchema.UID,
-						"mail":        cfg.Reva.LDAP.UserSchema.Mail,
-						"displayName": cfg.Reva.LDAP.UserSchema.DisplayName,
-						"cn":          cfg.Reva.LDAP.UserSchema.CN,
-					},
-				},
-				// TODO rest?
-			}
-			var authmgr auth.Manager
-			var err error
-			if f, ok := registry.NewFuncs[cfg.Reva.AuthProvider.Driver]; ok {
-				authmgr, err = f(config[cfg.Reva.AuthProvider.Driver])
-				if err != nil {
-					logger.Fatal().Err(err).Str("driver", cfg.Reva.AuthProvider.Driver).Msg("could not initialize auth manager")
-				}
-			} else {
-				logger.Fatal().Str("driver", cfg.Reva.AuthProvider.Driver).Msg("unknown auth manager")
-			}
-			handler, err := svc.NewAuthProvider(
-				svc.Logger(logger),
-				svc.Config(cfg),
-				svc.AuthManager(authmgr),
-			)
+			handler, err := svc.NewAuthRegistry(svc.Logger(logger), svc.Config(cfg))
 			if err != nil {
 				logger.Fatal().Err(err).Msg("could not initialize service handler")
 			}
@@ -86,21 +43,24 @@ func AuthBasic(cfg *config.Config) *cli.Command {
 			// configure and run the grpc server
 			{
 
-				service := grpc.NewAuthProvider(
+				service := grpc.NewAuthRegistry(
 					grpc.Logger(logger),
 					grpc.Context(ctx),
 					grpc.Config(cfg),
-					grpc.Namespace(cfg.Reva.AuthProvider.Namespace),
-					grpc.Name(cfg.Reva.AuthProvider.Name),
-					grpc.Metadata(map[string]string{"type": "basic"}),
+					grpc.Namespace(cfg.Reva.AuthRegistry.Namespace),
+					grpc.Name(cfg.Reva.AuthRegistry.Name),
+					grpc.Address(cfg.Reva.AuthRegistry.GRPCAddr),
 					// grpc.Metrics(metrics), // TODO metrics are part of the ocis-pkg grpc service, right?
 					//grpc.Flags(flagset.RootWithConfig(config.New())),
-					grpc.AuthProviderHandler(handler),
+					grpc.AuthRegistryHandler(handler),
 				)
 
 				gr.Add(func() error {
 					return service.Run()
-				}, func(_ error) {
+				}, func(err error) {
+					if err != nil {
+						logger.Error().Err(err).Msg("interrupted service with error")
+					}
 					cancel()
 				})
 			}
@@ -111,7 +71,7 @@ func AuthBasic(cfg *config.Config) *cli.Command {
 					debug.Logger(logger),
 					debug.Config(cfg),
 					debug.Name(c.Command.Name+"-debug"),
-					debug.Addr(cfg.Reva.AuthBasic.DebugAddr),
+					debug.Addr(cfg.Reva.AuthRegistry.DebugAddr),
 				)
 
 				if err != nil {

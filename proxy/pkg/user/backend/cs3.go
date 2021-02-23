@@ -3,6 +3,7 @@ package backend
 import (
 	"context"
 	"fmt"
+
 	gateway "github.com/cs3org/go-cs3apis/cs3/gateway/v1beta1"
 	cs3 "github.com/cs3org/go-cs3apis/cs3/identity/user/v1beta1"
 	rpcv1beta1 "github.com/cs3org/go-cs3apis/cs3/rpc/v1beta1"
@@ -78,6 +79,7 @@ func (c *cs3backend) Authenticate(ctx context.Context, username string, password
 	res, err := c.authProvider.Authenticate(ctx, &gateway.AuthenticateRequest{
 		ClientId:     username,
 		ClientSecret: password,
+		Type:         "basic",
 	})
 
 	switch {

@@ -43,6 +43,7 @@ var (
 		"storage-groupprovider",
 		"storage-auth-basic",
 		"storage-auth-bearer",
+		"storage-auth-registry",
 		"storage-home",
 		"storage-users",
 		"storage-metadata",

@@ -8,7 +8,6 @@ import (
 // Server initializes a new go-micro service ready to run
 func Server(opts ...Option) grpc.Service {
 	options := newOptions(opts...)
-	handler := options.Handler
 
 	service := grpc.NewService(
 		grpc.Name(options.Config.Server.Name),
@@ -20,13 +19,13 @@ func Server(opts ...Option) grpc.Service {
 		grpc.Version(options.Config.Server.Version),
 	)
 
-	if err := proto.RegisterAccountsServiceHandler(service.Server(), handler); err != nil {
+	if err := proto.RegisterAccountsServiceHandler(service.Server(), options.AccountsServiceHandler); err != nil {
 		options.Logger.Fatal().Err(err).Msg("could not register service handler")
 	}
-	if err := proto.RegisterGroupsServiceHandler(service.Server(), handler); err != nil {
+	if err := proto.RegisterGroupsServiceHandler(service.Server(), options.GroupsServiceHandler); err != nil {
 		options.Logger.Fatal().Err(err).Msg("could not register groups handler")
 	}
-	if err := proto.RegisterIndexServiceHandler(service.Server(), handler); err != nil {
+	if err := proto.RegisterIndexServiceHandler(service.Server(), options.IndexServiceHandler); err != nil {
 		options.Logger.Fatal().Err(err).Msg("could not register index handler")
 	}
 

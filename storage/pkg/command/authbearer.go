@@ -4,134 +4,94 @@ import (
 	"context"
 	"os"
 	"os/signal"
-	"path"
 	"time"
 
-	"github.com/cs3org/reva/cmd/revad/runtime"
-	"github.com/gofrs/uuid"
+	roidcm "github.com/cs3org/reva/pkg/auth/manager/oidc"
 	"github.com/micro/cli/v2"
 	"github.com/oklog/run"
 	"github.com/owncloud/ocis/storage/pkg/config"
 	"github.com/owncloud/ocis/storage/pkg/flagset"
 	"github.com/owncloud/ocis/storage/pkg/server/debug"
+	"github.com/owncloud/ocis/storage/pkg/server/grpc"
+	svc "github.com/owncloud/ocis/storage/pkg/service/v0"
 )
 
 // AuthBearer is the entrypoint for the auth-bearer command.
 func AuthBearer(cfg *config.Config) *cli.Command {
 	return &cli.Command{
 		Name:  "auth-bearer",
-		Usage: "Start authprovider for bearer auth",
+		Usage: "Start authprovider for basic auth",
 		Flags: flagset.AuthBearerWithConfig(cfg),
-		Before: func(c *cli.Context) error {
-			cfg.Reva.AuthBearer.Services = c.StringSlice("service")
-
-			return nil
-		},
 		Action: func(c *cli.Context) error {
 			logger := NewLogger(cfg)
 
-			if cfg.Tracing.Enabled {
-				switch t := cfg.Tracing.Type; t {
-				case "agent":
-					logger.Error().
-						Str("type", t).
-						Msg("Storage only supports the jaeger tracing backend")
-
-				case "jaeger":
-					logger.Info().
-						Str("type", t).
-						Msg("configuring storage to use the jaeger tracing backend")
-
-				case "zipkin":
-					logger.Error().
-						Str("type", t).
-						Msg("Storage only supports the jaeger tracing backend")
-
-				default:
-					logger.Warn().
-						Str("type", t).
-						Msg("Unknown tracing backend")
-				}
-
-			} else {
-				logger.Debug().
-					Msg("Tracing is not enabled")
-			}
+			// TODO add tracing
 
 			var (
 				gr          = run.Group{}
 				ctx, cancel = context.WithCancel(context.Background())
-				//metrics     = metrics.New()
+				//mtrcs       = metrics.New()
 			)
 
 			defer cancel()
 
+			// first initialize a service implementation
+			config := map[string]interface{}{
+				"issuer":    cfg.Reva.OIDC.Issuer,
+				"insecure":  cfg.Reva.OIDC.Insecure,
+				"id_claim":  cfg.Reva.OIDC.IDClaim,
+				"uid_claim": cfg.Reva.OIDC.UIDClaim,
+				"gid_claim": cfg.Reva.OIDC.GIDClaim,
+			}
+			authmgr, err := roidcm.New(config)
+			if err != nil {
+				logger.Fatal().Err(err).Msg("could not initialize oidc handler")
+			}
+
+			handler, err := svc.NewAuthProvider(
+				svc.Logger(logger),
+				svc.Config(cfg),
+				svc.AuthManager(authmgr),
+			)
+			if err != nil {
+				logger.Fatal().Err(err).Msg("could not initialize service handler")
+			}
+
+			// configure and run the grpc server
 			{
 
-				uuid := uuid.Must(uuid.NewV4())
-				pidFile := path.Join(os.TempDir(), "revad-"+c.Command.Name+"-"+uuid.String()+".pid")
-
-				rcfg := map[string]interface{}{
-					"core": map[string]interface{}{
-						"max_cpus":             cfg.Reva.AuthBearer.MaxCPUs,
-						"tracing_enabled":      cfg.Tracing.Enabled,
-						"tracing_endpoint":     cfg.Tracing.Endpoint,
-						"tracing_collector":    cfg.Tracing.Collector,
-						"tracing_service_name": c.Command.Name,
-					},
-					"shared": map[string]interface{}{
-						"jwt_secret": cfg.Reva.JWTSecret,
-					},
-					"grpc": map[string]interface{}{
-						"network": cfg.Reva.AuthBearer.GRPCNetwork,
-						"address": cfg.Reva.AuthBearer.GRPCAddr,
-						// TODO build services dynamically
-						"services": map[string]interface{}{
-							"authprovider": map[string]interface{}{
-								"auth_manager": "oidc",
-								"auth_managers": map[string]interface{}{
-									"oidc": map[string]interface{}{
-										"issuer":    cfg.Reva.OIDC.Issuer,
-										"insecure":  cfg.Reva.OIDC.Insecure,
-										"id_claim":  cfg.Reva.OIDC.IDClaim,
-										"uid_claim": cfg.Reva.OIDC.UIDClaim,
-										"gid_claim": cfg.Reva.OIDC.GIDClaim,
-									},
-								},
-							},
-						},
-					},
-				}
+				service := grpc.NewAuthProvider(
+					grpc.Logger(logger),
+					grpc.Context(ctx),
+					grpc.Config(cfg),
+					grpc.Namespace(cfg.Reva.AuthProvider.Namespace),
+					grpc.Name(cfg.Reva.AuthProvider.Name),
+					grpc.Metadata(map[string]string{"type": "bearer"}),
+					// grpc.Metrics(metrics), // TODO metrics are part of the ocis-pkg grpc service, right?
+					//grpc.Flags(flagset.RootWithConfig(config.New())),
+					grpc.AuthProviderHandler(handler),
+				)
 
 				gr.Add(func() error {
-					runtime.RunWithOptions(
-						rcfg,
-						pidFile,
-						runtime.WithLogger(&logger.Logger),
-					)
-					return nil
+					return service.Run()
 				}, func(_ error) {
-					logger.Info().
-						Str("server", c.Command.Name).
-						Msg("Shutting down server")
-
 					cancel()
 				})
 			}
 
+			// configure and run a http debug server for /readyz, /healthz, /metrics and /debug
 			{
 				server, err := debug.Server(
+					debug.Logger(logger),
+					debug.Config(cfg),
 					debug.Name(c.Command.Name+"-debug"),
 					debug.Addr(cfg.Reva.AuthBearer.DebugAddr),
-					debug.Logger(logger),
-					debug.Context(ctx),
-					debug.Config(cfg),
 				)
 
 				if err != nil {
 					logger.Info().
 						Err(err).
-						Str("server", "debug").
+						Str("transport", "debug").
 						Msg("Failed to initialize server")
 
 					return err
@@ -148,16 +108,17 @@ func AuthBearer(cfg *config.Config) *cli.Command {
 					if err := server.Shutdown(ctx); err != nil {
 						logger.Info().
 							Err(err).
-							Str("server", "debug").
+							Str("transport", "debug").
 							Msg("Failed to shutdown server")
 					} else {
 						logger.Info().
-							Str("server", "debug").
+							Str("transport", "debug").
 							Msg("Shutting down server")
 					}
 				})
 			}
 
+			// capture cli interrupts
 			{
 				stop := make(chan os.Signal, 1)
 
@@ -173,6 +134,7 @@ func AuthBearer(cfg *config.Config) *cli.Command {
 				})
 			}
 
+			// finally, bring it all up
 			return gr.Run()
 		},
 	}

@@ -14,7 +14,6 @@ import (
 // Server initializes the http service and server.
 func Server(opts ...Option) http.Service {
 	options := newOptions(opts...)
-	handler := options.Handler
 
 	service := http.NewService(
 		http.Logger(options.Logger),
@@ -57,8 +56,8 @@ func Server(opts ...Option) http.Service {
 	))
 
 	mux.Route(options.Config.HTTP.Root, func(r chi.Router) {
-		proto.RegisterAccountsServiceWeb(r, handler)
-		proto.RegisterGroupsServiceWeb(r, handler)
+		proto.RegisterAccountsServiceWeb(r, options.AccountsServiceHandler)
+		proto.RegisterGroupsServiceWeb(r, options.GroupsServiceHandler)
 	})
 
 	micro.RegisterHandler(service.Server(), mux)

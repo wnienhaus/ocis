@@ -16,6 +16,7 @@ type Options struct {
 	Namespace string
 	Name      string
 	Version   string
+	Metadata  map[string]string
 	Address   string
 	Context   context.Context
 	Flags     []cli.Flag
@@ -59,6 +60,13 @@ func Name(n string) Option {
 func Version(v string) Option {
 	return func(o *Options) {
 		o.Version = v
+	}
+}
+
+// Metadata associated with the server
+func Metadata(md map[string]string) Option {
+	return func(o *Options) {
+		o.Metadata = md
 	}
 }
 

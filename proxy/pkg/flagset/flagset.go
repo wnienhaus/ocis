@@ -259,7 +259,7 @@ func ServerWithConfig(cfg *config.Config) []cli.Flag {
 		&cli.StringFlag{
 			Name:        "account-backend-type",
 			Value:       "accounts",
-			Usage:       "account-backend-type",
+			Usage:       "account-backend-type to use, 'accounts' or 'cs3'",
 			EnvVars:     []string{"PROXY_ACCOUNT_BACKEND_TYPE"},
 			Destination: &cfg.AccountBackend,
 		},

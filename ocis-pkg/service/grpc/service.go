@@ -37,6 +37,7 @@ func NewService(opts ...Option) Service {
 		micro.Address(sopts.Address),
 		micro.Name(strings.Join([]string{sopts.Namespace, sopts.Name}, ".")),
 		micro.Version(sopts.Version),
+		micro.Metadata(sopts.Metadata),
 		micro.Context(sopts.Context),
 		micro.Flags(sopts.Flags...),
 		micro.Registry(registry.GetRegistry()),

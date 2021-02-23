@@ -80,6 +80,7 @@ func Execute() error {
 			Groups(cfg),
 			AuthBasic(cfg),
 			AuthBearer(cfg),
+			AuthRegistry(cfg),
 			Sharing(cfg),
 			StorageHome(cfg),
 			StorageUsers(cfg),

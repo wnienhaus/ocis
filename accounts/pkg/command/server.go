@@ -137,7 +137,8 @@ func Server(cfg *config.Config) *cli.Command {
 					http.Metrics(mtrcs),
 					http.Flags(flagset.RootWithConfig(config.New())),
 					http.Flags(flagset.ServerWithConfig(config.New())),
-					http.Handler(handler),
+					http.AccountsServiceHandler(handler),
+					http.GroupsServiceHandler(handler),
 				)
 
 				gr.Add(server.Run, func(_ error) {
@@ -156,7 +157,9 @@ func Server(cfg *config.Config) *cli.Command {
 					grpc.Context(ctx),
 					grpc.Config(cfg),
 					grpc.Metrics(mtrcs),
-					grpc.Handler(handler),
+					grpc.AccountsServiceHandler(handler),
+					grpc.GroupsServiceHandler(handler),
+					grpc.IndexServiceHandler(handler),
 				)
 
 				gr.Add(func() error {

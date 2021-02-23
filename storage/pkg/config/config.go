@@ -51,6 +51,13 @@ type Sharing struct {
 
 // Port defines the available port configuration.
 type Port struct {
+	// for the micro registry
+	Namespace string
+	Name      string
+	Version   string
+
+	// for reva
+
 	// MaxCPUs can be a number or a percentage
 	MaxCPUs  string
 	LogLevel string
@@ -337,6 +344,7 @@ type Reva struct {
 	AuthProvider      Users
 	AuthBasic         Port
 	AuthBearer        Port
+	AuthRegistry      Port
 	Sharing           Sharing
 	StorageHome       StoragePort
 	StorageUsers      StoragePort
