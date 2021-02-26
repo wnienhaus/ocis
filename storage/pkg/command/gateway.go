@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cs3org/reva/pkg/registry"
+
 	"github.com/cs3org/reva/cmd/revad/runtime"
 	"github.com/gofrs/uuid"
 	"github.com/micro/cli/v2"
@@ -101,8 +103,8 @@ func Gateway(cfg *config.Config) *cli.Command {
 								"storageregistrysvc": cfg.Reva.Gateway.Endpoint,
 								"appregistrysvc":     cfg.Reva.Gateway.Endpoint,
 								// user metadata is located on the users services
-								"preferencessvc":  cfg.Reva.Users.Endpoint,
-								"userprovidersvc": cfg.Reva.Users.Endpoint,
+								"preferencessvc":   cfg.Reva.Users.Endpoint,
+								"userprovidersvc":  cfg.Reva.Users.Endpoint,
 								"groupprovidersvc": cfg.Reva.Groups.Endpoint,
 								// sharing is located on the sharing service
 								"usershareprovidersvc":          cfg.Reva.Sharing.Endpoint,
@@ -144,6 +146,19 @@ func Gateway(cfg *config.Config) *cli.Command {
 					},
 				}
 
+				reg := registry.New()
+				svc := registry.Service{
+					Name: "com.owncloud.authregistry",
+					Nodes: []registry.Node{
+						{
+							Id: uuid.String(),
+							//Address: cfg.Reva.Gateway.Endpoint,
+							Address: "0.0.0.0:80",
+						},
+					},
+				}
+				reg.Add(svc)
+
 				gr.Add(func() error {
 					err := external.RegisterGRPCEndpoint(
 						ctx,
@@ -161,6 +176,7 @@ func Gateway(cfg *config.Config) *cli.Command {
 						rcfg,
 						pidFile,
 						runtime.WithLogger(&logger.Logger),
+						runtime.WithRegistry(reg),
 					)
 					return nil
 				}, func(_ error) {

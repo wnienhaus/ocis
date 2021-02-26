@@ -63,4 +63,5 @@ replace (
 	go.etcd.io/etcd/pkg/v3 => go.etcd.io/etcd/pkg/v3 v3.0.0-20210204162551-dae29bb719dd
 	// latest version compatible with etcd
 	google.golang.org/grpc => google.golang.org/grpc v1.29.1
+	github.com/cs3org/reva => ../../../../code/refs/reva
 )
