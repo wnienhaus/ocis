@@ -92,6 +92,22 @@ func Gateway(cfg *config.Config) *cli.Command {
 						"jwt_secret": cfg.Reva.JWTSecret,
 						"gatewaysvc": cfg.Reva.Gateway.Endpoint,
 					},
+					/*
+						"registry": map[string]interface{}{
+							"services": map[string]interface{}{
+								"com.owncloud.authregistry": map[string]interface{}{
+									"name": "com.owncloud.authregistry",
+									"nodes": []map[string]interface{}{
+										map[string]interface{}{
+											"id":      uuid.String(),
+											"address": cfg.Reva.Gateway.Endpoint,
+											//"metadata"
+										},
+									},
+								},
+							},
+						},
+					*/
 					"grpc": map[string]interface{}{
 						"network": cfg.Reva.Gateway.GRPCNetwork,
 						"address": cfg.Reva.Gateway.GRPCAddr,
@@ -146,14 +162,14 @@ func Gateway(cfg *config.Config) *cli.Command {
 					},
 				}
 
-				reg := registry.New()
+				reg, _ := registry.New(map[string]interface{}{})
 				svc := registry.Service{
 					Name: "com.owncloud.authregistry",
 					Nodes: []registry.Node{
 						{
-							Id: uuid.String(),
-							//Address: cfg.Reva.Gateway.Endpoint,
-							Address: "0.0.0.0:80",
+							ID:      uuid.String(),
+							Address: cfg.Reva.Gateway.Endpoint,
+							//Address: "0.0.0.0:80",
 						},
 					},
 				}
