@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cs3org/reva/pkg/registry"
-
 	"github.com/cs3org/reva/cmd/revad/runtime"
 	"github.com/gofrs/uuid"
 	"github.com/micro/cli/v2"
@@ -80,6 +78,20 @@ func Gateway(cfg *config.Config) *cli.Command {
 				uuid := uuid.Must(uuid.NewV4())
 				pidFile := path.Join(os.TempDir(), "revad-"+c.Command.Name+"-"+uuid.String()+".pid")
 
+				regServices := make([]interface{}, 0)
+				servNodes := make([]interface{}, 0)
+
+				servNodes = append(servNodes, map[string]interface{}{
+					"id":      uuid.String(),
+					"address": cfg.Reva.Gateway.Endpoint,
+					//"address": "localhost:80",
+				})
+
+				regServices = append(regServices, map[string]interface{}{
+					"name":  "com.owncloud.authregistry",
+					"nodes": servNodes,
+				})
+
 				rcfg := map[string]interface{}{
 					"core": map[string]interface{}{
 						"max_cpus":             cfg.Reva.Users.MaxCPUs,
@@ -92,22 +104,11 @@ func Gateway(cfg *config.Config) *cli.Command {
 						"jwt_secret": cfg.Reva.JWTSecret,
 						"gatewaysvc": cfg.Reva.Gateway.Endpoint,
 					},
-					/*
-						"registry": map[string]interface{}{
-							"services": map[string]interface{}{
-								"com.owncloud.authregistry": map[string]interface{}{
-									"name": "com.owncloud.authregistry",
-									"nodes": []map[string]interface{}{
-										map[string]interface{}{
-											"id":      uuid.String(),
-											"address": cfg.Reva.Gateway.Endpoint,
-											//"metadata"
-										},
-									},
-								},
-							},
+					"registry": map[string]interface{}{
+						"services": map[string]interface{}{
+							"com.owncloud.authregistry": regServices,
 						},
-					*/
+					},
 					"grpc": map[string]interface{}{
 						"network": cfg.Reva.Gateway.GRPCNetwork,
 						"address": cfg.Reva.Gateway.GRPCAddr,
@@ -115,7 +116,7 @@ func Gateway(cfg *config.Config) *cli.Command {
 						"services": map[string]interface{}{
 							"gateway": map[string]interface{}{
 								// registries is located on the gateway
-								"authregistrysvc":    cfg.Reva.Gateway.Endpoint,
+								//"authregistrysvc":    cfg.Reva.Gateway.Endpoint,
 								"storageregistrysvc": cfg.Reva.Gateway.Endpoint,
 								"appregistrysvc":     cfg.Reva.Gateway.Endpoint,
 								// user metadata is located on the users services
@@ -162,19 +163,6 @@ func Gateway(cfg *config.Config) *cli.Command {
 					},
 				}
 
-				reg, _ := registry.New(map[string]interface{}{})
-				svc := registry.Service{
-					Name: "com.owncloud.authregistry",
-					Nodes: []registry.Node{
-						{
-							ID:      uuid.String(),
-							Address: cfg.Reva.Gateway.Endpoint,
-							//Address: "0.0.0.0:80",
-						},
-					},
-				}
-				reg.Add(svc)
-
 				gr.Add(func() error {
 					err := external.RegisterGRPCEndpoint(
 						ctx,
@@ -192,7 +180,7 @@ func Gateway(cfg *config.Config) *cli.Command {
 						rcfg,
 						pidFile,
 						runtime.WithLogger(&logger.Logger),
-						runtime.WithRegistry(reg),
+						//runtime.WithRegistry(reg),
 					)
 					return nil
 				}, func(_ error) {
