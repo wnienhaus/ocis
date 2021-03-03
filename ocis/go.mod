@@ -36,11 +36,12 @@ require (
 	github.com/spf13/cobra v1.1.3
 	github.com/spf13/viper v1.7.1
 	github.com/stretchr/testify v1.7.0
-	go.opencensus.io v0.22.6
+	go.opencensus.io v0.23.0
 	golang.org/x/sys v0.0.0-20210218155724-8ebf48af031b
 )
 
 replace (
+	github.com/cs3org/reva => ../../../../code/refs/reva
 	github.com/gomodule/redigo => github.com/gomodule/redigo v1.8.2
 	github.com/oleiade/reflections => github.com/oleiade/reflections v1.0.1
 	github.com/owncloud/ocis/accounts => ../accounts
@@ -63,5 +64,4 @@ replace (
 	go.etcd.io/etcd/pkg/v3 => go.etcd.io/etcd/pkg/v3 v3.0.0-20210204162551-dae29bb719dd
 	// latest version compatible with etcd
 	google.golang.org/grpc => google.golang.org/grpc v1.29.1
-	github.com/cs3org/reva => ../../../../code/refs/reva
 )

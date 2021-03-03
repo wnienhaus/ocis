@@ -115,8 +115,8 @@ func Gateway(cfg *config.Config) *cli.Command {
 						// TODO build services dynamically
 						"services": map[string]interface{}{
 							"gateway": map[string]interface{}{
-								// registries is located on the gateway
-								//"authregistrysvc":    cfg.Reva.Gateway.Endpoint,
+								// registries are located on the gateway
+								"authregistrysvc":    "com.owncloud.authregistry",
 								"storageregistrysvc": cfg.Reva.Gateway.Endpoint,
 								"appregistrysvc":     cfg.Reva.Gateway.Endpoint,
 								// user metadata is located on the users services
